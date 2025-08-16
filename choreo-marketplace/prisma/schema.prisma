@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  name            String?
+  image           String?
+  passwordHash    String?
+  role            UserRole @default(TEAM)
+
+  choreographerProfile ChoreographerProfile?
+  bookingsAsTeam       Booking[]        @relation("TeamBookings")
+  bookingsAsChoreographer Booking[]     @relation("ChoreographerBookings")
+  reviewsAuthored      Review[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+enum UserRole {
+  TEAM
+  CHOREOGRAPHER
+  ADMIN
+}
+
+model ChoreographerProfile {
+  id           String  @id @default(cuid())
+  user         User    @relation(fields: [userId], references: [id])
+  userId       String  @unique
+  bio          String?
+  location     String?
+  reelUrl      String?
+  specialties  Json
+  ratePerHour  Int?
+  travelNotes  String?
+
+  availabilitySlots AvailabilitySlot[]
+  videoLessons       VideoLesson[]
+  reviewsReceived    Review[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model AvailabilitySlot {
+  id            String   @id @default(cuid())
+  choreographer ChoreographerProfile @relation(fields: [choreographerId], references: [id])
+  choreographerId String
+  start         DateTime
+  end           DateTime
+  status        SlotStatus @default(AVAILABLE)
+
+  booking       Booking?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+enum SlotStatus {
+  AVAILABLE
+  HOLD
+  BOOKED
+}
+
+model Booking {
+  id              String   @id @default(cuid())
+  choreographer   User     @relation("ChoreographerBookings", fields: [choreographerUserId], references: [id])
+  choreographerUserId String
+  team            User     @relation("TeamBookings", fields: [teamUserId], references: [id])
+  teamUserId      String
+
+  availabilitySlot AvailabilitySlot? @relation(fields: [availabilitySlotId], references: [id])
+  availabilitySlotId String? @unique
+
+  start           DateTime
+  end             DateTime
+  priceCents      Int      @default(0)
+  currency        String   @default("usd")
+  status          BookingStatus @default(PENDING)
+
+  review          Review?
+  paymentRecords  Payment[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELED
+}
+
+model Review {
+  id              String   @id @default(cuid())
+  booking         Booking  @relation(fields: [bookingId], references: [id])
+  bookingId       String   @unique
+  choreographer   ChoreographerProfile @relation(fields: [choreographerProfileId], references: [id])
+  choreographerProfileId String
+  author          User     @relation(fields: [authorUserId], references: [id])
+  authorUserId    String
+  rating          Int
+  comment         String?
+  createdAt       DateTime @default(now())
+}
+
+model VideoLesson {
+  id              String   @id @default(cuid())
+  choreographer   ChoreographerProfile @relation(fields: [choreographerProfileId], references: [id])
+  choreographerProfileId String
+  title           String
+  description     String?
+  videoUrl        String
+  priceCents      Int      @default(0)
+  createdAt       DateTime @default(now())
+}
+
+model Payment {
+  id             String   @id @default(cuid())
+  booking        Booking  @relation(fields: [bookingId], references: [id])
+  bookingId      String
+  amountCents    Int
+  currency       String   @default("usd")
+  provider       String   @default("stripe")
+  providerRef    String?
+  status         PaymentStatus @default(REQUIRES_ACTION)
+  createdAt      DateTime @default(now())
+}
+
+enum PaymentStatus {
+  REQUIRES_ACTION
+  SUCCEEDED
+  FAILED
+}
